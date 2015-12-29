@@ -1,6 +1,6 @@
 package io.synaptix.pantilt
 
-import akka.actor.{Actor, Props}
+import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import akka.util.Timeout
 
 object RobotController {
@@ -13,25 +13,41 @@ object RobotController {
 
   case class MoveTo(pan: Double, tilt: Double)
 
+  case class RobotConnected(tcpConnection: ActorRef)
+
+  case class RobotDisonnected(robotActor: ActorRef)
   case object RobotMoved extends MoveResponse
-
   case object RobotNotConnected extends MoveResponse
-
 }
 
-class RobotController(implicit timeout: Timeout) extends Actor {
+class RobotController(implicit timeout: Timeout) extends Actor with ActorLogging {
 
   import RobotController._
 
-  val robotChannel: Option[RobotChannel] = None
+  var robot: Option[ActorRef] = None
 
   override def receive = {
-    case MoveTo(pan, tilt) =>
-      def noRobot() = sender() ! RobotNotConnected
-      def move(robotChannel: RobotChannel) = {
-        robotChannel.updatePosition(pan, tilt)
+
+    case RobotConnected(connection) =>
+      log.debug("Robot connected")
+      val robotActor = context.actorOf(Robot.props(connection), Robot.name)
+      this.robot = Some(robotActor)
+
+    case RobotDisonnected(robotActor: ActorRef) =>
+      log.debug("Robot disconnected")
+      robot = None
+
+    case msg@MoveTo(pan, tilt) =>
+      log.debug(s"Move To $pan, $tilt REQUESTED")
+      def noRobot() = {
+        log.debug(s"No robot connected")
+        sender() ! RobotNotConnected
+      }
+      def move(robot: ActorRef) = {
+        log.debug(s"Moving robot to $pan, $tilt")
+        robot.forward(msg)
         sender() ! RobotMoved
       }
-      robotChannel.fold(noRobot())(move)
+      robot.fold(noRobot())(move)
   }
 }

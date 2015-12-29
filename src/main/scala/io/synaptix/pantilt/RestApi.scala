@@ -1,6 +1,6 @@
 package io.synaptix.pantilt
 
-import akka.actor.ActorRef
+import akka.actor.{ActorRef, Props}
 import akka.util.Timeout
 import spray.http.StatusCodes
 import spray.httpx.SprayJsonSupport._
@@ -8,15 +8,19 @@ import spray.routing._
 
 import scala.concurrent.ExecutionContext
 
-class RestApi(timeout: Timeout) extends HttpServiceActor
+object RestApi {
+  def props(robotController: ActorRef)(implicit timeout: Timeout) = Props(new RestApi(robotController))
+
+  def name = "rest-api"
+}
+
+class RestApi(val robotController: ActorRef)(implicit timeout: Timeout) extends HttpServiceActor
 with RestRoutes {
   implicit val requestTimeout = timeout
 
   def receive = runRoute(routes)
 
   implicit def executionContext = context.dispatcher
-
-  def createRobotController() = context.actorOf(RobotController.props, RobotController.name)
 }
 
 trait RestRoutes extends HttpService with RobotControllerApi with EventMarshalling {
@@ -48,9 +52,7 @@ trait RobotControllerApi {
   import RobotController._
   import akka.pattern.ask
 
-  lazy val robotController = createRobotController()
-
-  def createRobotController(): ActorRef
+  def robotController: ActorRef
 
   implicit def executionContext: ExecutionContext
 
