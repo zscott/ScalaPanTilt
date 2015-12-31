@@ -29,7 +29,7 @@ object Main extends App with RequestTimeout with HttpBinding with TcpBinding {
   val restApi = system.actorOf(RestApi.props(robotController), RestApi.name)
   bindHttpListener(restApi, restHost, restPort)
 
-  val robotServer = system.actorOf(RobotServer.props(robotController), RobotServer.name)
+  val robotServer = system.actorOf(RobotTcpServer.props(robotController), RobotTcpServer.name)
   bindTcpServer(robotServer, robotHost, robotPort)
 
   while (true) {

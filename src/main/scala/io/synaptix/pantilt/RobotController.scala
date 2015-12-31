@@ -12,7 +12,7 @@ object RobotController {
   case class MoveTo(pan: Double, tilt: Double)
 
   case class RobotConnected(tcpConnection: ActorRef)
-  case class RobotDisonnected(robotActor: ActorRef)
+  case class RobotDisconnected(robotActor: ActorRef)
 
 
   sealed trait MoveResponse
@@ -25,19 +25,18 @@ class RobotController(implicit timeout: Timeout) extends Actor with ActorLogging
 
   import RobotController._
 
-  var robot: Option[ActorRef] = None
+  var robotConnection: Option[ActorRef] = None
 
   override def receive = {
 
     case RobotConnected(connection) =>
       log.info("Robot connected")
-      val robotActor = context.actorOf(Robot.props(connection), Robot.name)
-      this.robot = Some(robotActor)
+      val robotConnection = context.actorOf(RobotTcpConnection.props(connection), RobotTcpConnection.name)
+      this.robotConnection = Some(robotConnection)
 
-
-    case RobotDisonnected(robotActor: ActorRef) =>
+    case RobotDisconnected(robotActor: ActorRef) =>
       log.info("Robot disconnected")
-      robot = None
+      robotConnection = None
 
     case msg@MoveTo(pan, tilt) =>
       log.debug(s"Move To $pan, $tilt REQUESTED")
@@ -49,6 +48,6 @@ class RobotController(implicit timeout: Timeout) extends Actor with ActorLogging
         log.debug(s"Moving robot to $pan, $tilt")
         robot.forward(msg)
       }
-      robot.fold(noRobot())(move)
+      robotConnection.fold(noRobot())(move)
   }
 }

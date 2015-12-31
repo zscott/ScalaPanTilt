@@ -4,22 +4,22 @@ import akka.actor._
 import akka.io.Tcp
 import akka.io.Tcp.Event
 import akka.util.{ByteString, Timeout}
-import io.synaptix.pantilt.RobotController.{RequestDropped, RobotMoved, MoveTo, RobotDisonnected}
+import io.synaptix.pantilt.RobotController.{RequestDropped, RobotMoved, MoveTo, RobotDisconnected}
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-object Robot {
-  def props(connection: ActorRef)(implicit timeout: Timeout) = Props(new Robot(connection))
+object RobotTcpConnection {
+  def props(connection: ActorRef)(implicit timeout: Timeout) = Props(new RobotTcpConnection(connection))
 
   def name = "robot"
 }
 
-class Robot(connection: ActorRef)(implicit timeout: Timeout) extends Actor with ActorLogging {
+class RobotTcpConnection(underlyingConnection: ActorRef)(implicit timeout: Timeout) extends Actor with ActorLogging {
 
-  connection ! Tcp.Register(self)
+  underlyingConnection ! Tcp.Register(self)
 
   // death pact : this actor terminates when connection breaks
-  context watch connection
+  context watch underlyingConnection
 
   implicit val ec = context.system.dispatcher
 
@@ -29,12 +29,17 @@ class Robot(connection: ActorRef)(implicit timeout: Timeout) extends Actor with 
   def receiveErrors: Receive = {
     case Tcp.ErrorClosed(error) =>
       log.info(s"lost connection to robot: $error")
-      context.parent ! RobotDisonnected(self)
+      context.parent ! RobotDisconnected(self)
       context stop self
 
     case _: Tcp.ConnectionClosed =>
       log.info(s"lost connection to robot")
-      context.parent ! RobotDisonnected(self)
+      context.parent ! RobotDisconnected(self)
+      context stop self
+
+    case _ : Terminated =>
+      log.error(s"underlying connection actor terminated abruptly - lost connection to robot")
+      context.parent ! RobotDisconnected(self)
       context stop self
   }
 
@@ -48,7 +53,7 @@ class Robot(connection: ActorRef)(implicit timeout: Timeout) extends Actor with 
       val tiltByte = tilt.toInt.toByte
       val data = ByteString(panByte, tiltByte)
       val cancellableAckTimer = context.system.scheduler.scheduleOnce(1 second, self, AckTimeout)
-      connection ! Tcp.Write(data, Ack(sender(), cancellableAckTimer))
+      underlyingConnection ! Tcp.Write(data, Ack(sender(), cancellableAckTimer))
       context.become(receiveErrors orElse receiveInAwaitingAckState orElse unhandled, discardOld = false)
   }
 
@@ -60,7 +65,7 @@ class Robot(connection: ActorRef)(implicit timeout: Timeout) extends Actor with 
 
     case AckTimeout =>
       log.error(s"Timeout waiting for Ack from robot - Assuming we are disconnected")
-      context.parent ! RobotDisonnected(self)
+      context.parent ! RobotDisconnected(self)
       context stop self
 
     case MoveTo(pan, tilt) =>

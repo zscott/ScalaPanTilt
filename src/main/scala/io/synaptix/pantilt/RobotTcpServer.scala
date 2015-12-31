@@ -6,13 +6,13 @@ import akka.util.Timeout
 import io.synaptix.pantilt.RobotController.RobotConnected
 
 
-object RobotServer {
-  def props(robotController: ActorRef)(implicit timeout: Timeout) = Props(new RobotServer(robotController))
+object RobotTcpServer {
+  def props(robotController: ActorRef)(implicit timeout: Timeout) = Props(new RobotTcpServer(robotController))
 
   def name = "robot-server"
 }
 
-class RobotServer(robotController: ActorRef)(implicit timeout: Timeout) extends Actor with ActorLogging {
+class RobotTcpServer(robotController: ActorRef)(implicit timeout: Timeout) extends Actor with ActorLogging {
 
   override def receive: Receive = {
     case Tcp.Bound(localAddress) =>
