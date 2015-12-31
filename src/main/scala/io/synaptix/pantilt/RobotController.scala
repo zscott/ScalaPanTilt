@@ -1,6 +1,6 @@
 package io.synaptix.pantilt
 
-import akka.actor.{Actor, ActorLogging, ActorRef, Props}
+import akka.actor._
 import akka.util.Timeout
 
 object RobotController {
@@ -33,6 +33,17 @@ class RobotController(implicit timeout: Timeout) extends Actor with ActorLogging
       log.info("Robot connected")
       val robotConnection = context.actorOf(RobotTcpConnection.props(connection), RobotTcpConnection.name)
       this.robotConnection = Some(robotConnection)
+      context watch robotConnection
+
+    case Terminated(terminatedActorRef) =>
+      def noRobot() = log.error("Got Terminated message while no robot connection was present.")
+      def terminated(currentRobotConnection: ActorRef) = {
+        if (currentRobotConnection != terminatedActorRef) {
+          log.debug("Got notification that RobotConnection actor was terminated, but doesn't match current robotConnection")
+        }
+        robotConnection = None
+      }
+      robotConnection.fold(noRobot())(terminated)
 
     case RobotDisconnected(robotActor: ActorRef) =>
       log.info("Robot disconnected")

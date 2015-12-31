@@ -4,7 +4,8 @@ import akka.actor._
 import akka.io.Tcp
 import akka.io.Tcp.Event
 import akka.util.{ByteString, Timeout}
-import io.synaptix.pantilt.RobotController.{RequestDropped, RobotMoved, MoveTo, RobotDisconnected}
+import io.synaptix.pantilt.RobotController.{MoveTo, RequestDropped, RobotDisconnected, RobotMoved}
+
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
@@ -38,7 +39,7 @@ class RobotTcpConnection(underlyingConnection: ActorRef)(implicit timeout: Timeo
       context stop self
 
     case _ : Terminated =>
-      log.error(s"underlying connection actor terminated abruptly - lost connection to robot")
+      log.info(s"underlying connection actor terminated abruptly - lost connection to robot")
       context.parent ! RobotDisconnected(self)
       context stop self
   }
