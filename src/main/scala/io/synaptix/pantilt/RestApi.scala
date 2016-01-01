@@ -5,6 +5,7 @@ import akka.util.Timeout
 import spray.http.StatusCodes
 import spray.httpx.SprayJsonSupport._
 import spray.routing._
+import spray.httpx.PlayTwirlSupport._
 
 import scala.concurrent.ExecutionContext
 
