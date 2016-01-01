@@ -7,10 +7,7 @@ import akka.io.{IO, Tcp}
 import akka.pattern.ask
 import akka.util.Timeout
 import com.typesafe.config.{Config, ConfigFactory}
-import io.synaptix.pantilt.RobotController.MoveTo
 import spray.can.Http
-
-import scala.util.Random
 
 object Main extends App with RequestTimeout with HttpBinding with TcpBinding {
 
@@ -31,13 +28,6 @@ object Main extends App with RequestTimeout with HttpBinding with TcpBinding {
 
   val robotServer = system.actorOf(RobotTcpServer.props(robotController), RobotTcpServer.name)
   bindTcpServer(robotServer, robotHost, robotPort)
-
-  while (true) {
-    val pan = Random.nextInt(100)
-    val tilt = Random.nextInt(100)
-    robotController ! MoveTo(pan, tilt)
-    Thread.sleep(Random.nextInt(1000) + 1000)
-  }
 }
 
 trait RequestTimeout {

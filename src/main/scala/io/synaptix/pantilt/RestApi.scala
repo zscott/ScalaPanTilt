@@ -27,7 +27,22 @@ trait RestRoutes extends HttpService with RobotControllerApi with EventMarshalli
 
   import StatusCodes._
 
-  def routes: Route = positionRoute // ~ otherRoute ~ yetAnotherRoute
+  def routes: Route = indexRoute ~ staticRoute ~ positionRoute
+
+  def indexRoute = pathSingleSlash {
+    get {
+      complete {
+        io.synaptix.pantilt.html.index.render()
+      }
+    }
+  }
+
+  def staticRoute =
+    get {
+      pathPrefix("static") {
+        getFromResourceDirectory("static")
+      }
+    }
 
   def positionRoute =
     pathPrefix("position") {
