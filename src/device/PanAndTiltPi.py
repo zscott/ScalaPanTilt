@@ -158,7 +158,7 @@ while True:
 		remote.connect()
 	except socket.error:
 		print "Socket connection failed! Waiting for a bit then retrying..."
-		traceback.print_exc()
+		#traceback.print_exc()
 		time.sleep(5)
 		continue
 	print "Connected!"
