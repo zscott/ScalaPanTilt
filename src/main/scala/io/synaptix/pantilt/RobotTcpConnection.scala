@@ -27,6 +27,9 @@ class RobotTcpConnection(underlyingConnection: ActorRef)(implicit timeout: Timeo
   case class Ack(requestingActor: ActorRef, cancellableAckTimer: Cancellable) extends Event
   case object AckTimeout
 
+  // die after 6 seconds - should rarely happen because the robot
+  context.setReceiveTimeout(6 seconds)
+
   def receiveErrors: Receive = {
     case Tcp.ErrorClosed(error) =>
       log.info(s"lost connection to robot: $error")
@@ -39,7 +42,12 @@ class RobotTcpConnection(underlyingConnection: ActorRef)(implicit timeout: Timeo
       context stop self
 
     case _ : Terminated =>
-      log.info(s"underlying connection actor terminated abruptly - lost connection to robot")
+      log.info(s"underlying connection terminated abruptly - lost connection to robot")
+      context.parent ! RobotDisconnected(self)
+      context stop self
+
+    case _ : ReceiveTimeout =>
+      log.info(s"inactive - terminating actor")
       context.parent ! RobotDisconnected(self)
       context stop self
   }
@@ -65,13 +73,13 @@ class RobotTcpConnection(underlyingConnection: ActorRef)(implicit timeout: Timeo
       context.unbecome()
 
     case AckTimeout =>
-      log.error(s"Timeout waiting for Ack from robot - Assuming we are disconnected")
+      log.error(s"Timeout waiting for Ack from robot - assuming connection is lost")
       context.parent ! RobotDisconnected(self)
       context stop self
 
     case MoveTo(pan, tilt) =>
-      log.warning(s"Dropped request to move to $pan, $tilt - Waiting for ACK from robot!")
-      sender() ! RequestDropped("robot temporarily busy")
+      log.warning(s"Dropped MoveTo request - Waiting for ACK from robot!")
+      sender() ! RequestDropped("robot busy")
   }
 
   def unhandled: Receive = {

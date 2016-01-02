@@ -36,14 +36,13 @@ class RobotController(implicit timeout: Timeout) extends Actor with ActorLogging
       context watch robotConnection
 
     case Terminated(terminatedActorRef) =>
-      def noRobot() = log.error("Got Terminated message while no robot connection was present.")
       def terminated(currentRobotConnection: ActorRef) = {
-        if (currentRobotConnection != terminatedActorRef) {
-          log.debug("Got notification that RobotConnection actor was terminated, but doesn't match current robotConnection")
+        if (currentRobotConnection == terminatedActorRef) {
+          log.info("RobotTcpConnection Terminated")
+          robotConnection = None
         }
-        robotConnection = None
       }
-      robotConnection.fold(noRobot())(terminated)
+      robotConnection.foreach(terminated)
 
     case RobotDisconnected(robotActor: ActorRef) =>
       log.info("Robot disconnected")
