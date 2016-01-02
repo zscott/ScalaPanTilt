@@ -1,7 +1,8 @@
 package io.synaptix.pantilt
 
-import akka.actor.{ActorRef, Props}
+import akka.actor.{ActorLogging, ActorRef, Props}
 import akka.util.Timeout
+import io.synaptix.pantilt.RobotController.RequestDropped
 import spray.http.StatusCodes
 import spray.httpx.SprayJsonSupport._
 import spray.routing._
@@ -56,6 +57,8 @@ trait RestRoutes extends HttpService with RobotControllerApi with EventMarshalli
               case RobotController.RobotNotConnected =>
                 val err = Error(s"No Robot Connected")
                 complete(NotFound, err)
+              case RequestDropped(reason) =>
+                complete(TooManyRequests, s"Command not sent to robot: $reason")
             }
           }
         }
