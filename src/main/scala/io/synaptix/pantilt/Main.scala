@@ -1,33 +1,79 @@
 package io.synaptix.pantilt
 
-import java.net.InetSocketAddress
+import java.net.{InetAddress, InetSocketAddress}
 
-import akka.actor.{ActorRef, ActorSystem}
+import akka.actor._
+import akka.cluster.ClusterEvent._
+import akka.cluster.{Cluster, Member}
 import akka.io.{IO, Tcp}
 import akka.pattern.ask
 import akka.util.Timeout
 import com.typesafe.config.{Config, ConfigFactory}
+import io.synaptix.pantilt.RestApi.RegisterRobotController
 import spray.can.Http
 
 object Main extends App with RequestTimeout with HttpBinding with TcpBinding {
 
-  val config = ConfigFactory.load()
+  private val hostName: String = InetAddress.getLocalHost.getHostName
+
+  private val config: Config = ConfigFactory
+    .parseString(s"akka.remote.netty.tcp.hostname=$hostName")
+    .withFallback(ConfigFactory.load())
+
   val restHost = config.getString("rest.host")
   val restPort = config.getInt("rest.port")
   val robotHost = config.getString("robot.host")
   val robotPort = config.getInt("robot.port")
 
-  implicit val system = ActorSystem("pan-tilt")
+  implicit val system = ActorSystem("PanTiltSystem")
   implicit val executionContext = system.dispatcher
   implicit val timeout = requestTimeout(config)
 
   val robotController = system.actorOf(RobotController.props, RobotController.name)
 
-  val restApi = system.actorOf(RestApi.props(robotController), RestApi.name)
+  val restApi = system.actorOf(RestApi.props, RestApi.name)
   bindHttpListener(restApi, restHost, restPort)
 
-  val robotServer = system.actorOf(RobotTcpServer.props(robotController), RobotTcpServer.name)
-  bindTcpServer(robotServer, robotHost, robotPort)
+  restApi ! RegisterRobotController(robotController)
+
+  val robotTcpServer = system.actorOf(RobotTcpServer.props(robotController), RobotTcpServer.name)
+  bindTcpServer(robotTcpServer, robotHost, robotPort)
+
+  val clusterListener = system.actorOf(Props(new Actor() with ActorLogging {
+
+    implicit val cluster = Cluster(context.system)
+
+    override def preStart(): Unit = {
+      log.info(s"******** akka.remote.netty.tcp.hostname=$hostName")
+      cluster.subscribe(self, initialStateMode = InitialStateAsEvents,
+        classOf[MemberEvent], classOf[UnreachableMember])
+    }
+
+    override def postStop(): Unit = {
+      cluster.unsubscribe(self)
+    }
+
+    private def restApiSelection(member: Member): ActorSelection = {
+      context.actorSelection(RootActorPath(member.address) / "user" / RestApi.name)
+    }
+
+    override def receive: Receive = {
+      case MemberUp(newMember) =>
+        log.info("Member is Up: {}", newMember.address)
+        log.info("Registering RobotController with new member.")
+        restApiSelection(newMember) ! RegisterRobotController(robotController)
+
+      case UnreachableMember(member) =>
+        log.info("Member detected as unreachable: {}", member)
+
+      case MemberRemoved(removedMember, previousStatus) =>
+        log.info("Member is Removed: {} after {}", removedMember.address, previousStatus)
+
+
+      case _: MemberEvent => // ignore
+    }
+  }))
+
 }
 
 trait RequestTimeout {

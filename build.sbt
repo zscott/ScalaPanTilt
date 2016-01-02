@@ -13,6 +13,7 @@ lazy val dependencies = {
 
   Seq(
     "com.typesafe.akka" %% "akka-actor" % akkaVersion,
+    "com.typesafe.akka" %% "akka-cluster" % akkaVersion,
     "io.spray" %% "spray-can" % sprayVersion,
     "io.spray" %% "spray-routing" % sprayVersion,
     "io.spray" %% "spray-json" % sprayJsonVersion,
@@ -41,27 +42,9 @@ lazy val root = Project("scala-pantilt", file(".")).
   settings(dockerSettings: _*)
 
 lazy val dockerSettings = {
-  dockerExposedPorts := Seq(8888, 5000)
+  dockerExposedPorts := Seq(8888, 5000, 2550)
   dockerCommands ++= Seq(
     Cmd("MAINTAINER", "zach.mobile@gmail.com")
   )
 }
-
-/*
-FROM node:5-wheezy
-MAINTAINER Zach Scott <zach.mobile@gmail.com>
-
-RUN echo 'will expose port 8888'
-EXPOSE 8888
-
-RUN echo 'copying files'
-COPY app app/
-
-RUN cd app && npm install
-
-CMD cd app && ./start.sh
-
- */
-
-
 

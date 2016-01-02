@@ -22,7 +22,11 @@ paper-card.card-content {
 }
 
 #canvas {
-    background-color: #3DBDFF;
+    background-color: #FF7948;
+}
+
+#canvas.robot-connected {
+    background-color: #38FF83;
 }
 
 .mouseDown {

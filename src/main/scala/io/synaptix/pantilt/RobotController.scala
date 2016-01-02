@@ -2,6 +2,7 @@ package io.synaptix.pantilt
 
 import akka.actor._
 import akka.util.Timeout
+import io.synaptix.ServiceException
 
 object RobotController {
 

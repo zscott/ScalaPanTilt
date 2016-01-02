@@ -49,16 +49,34 @@ var touchEventToPosition = function (canvas) {
     };
 };
 
-var mousemoves = $('#canvas').asEventStream("mousemove").throttle(50);
-var touchmoves = $('#canvas').asEventStream("touchmove").throttle(50);
+var mousemoves = $canvas.asEventStream("mousemove").throttle(50);
+var touchmoves = $canvas.asEventStream("touchmove").throttle(50);
 var touchEventToPositionForCanvas = touchEventToPosition(canvas);
 
 var positions = mousemoves.map(mouseEventToPosition).merge(touchmoves.map(touchEventToPositionForCanvas));
 
+var isConnected = false;
+
+var robotMovedCallback = function() {
+    if (!isConnected) {
+        isConnected = true;
+        console.log("robot connected");
+        $canvas.addClass("robot-connected");
+    }
+};
+
+var noRobotCallback = function() {
+    if (isConnected) {
+        isConnected = false;
+        console.log("robot disconnected");
+        $canvas.removeClass("robot-connected");
+    }
+};
+
 var updatePosition = function (x, y) {
     console.log("(" + x + "," + y + ")");
     event = event || window.event;
-    canvas = $("#canvas")[0];
+    canvas = $canvas[0];
     pan = x / canvas.width * 100;
     tilt = 100 - (y / canvas.height * 100);
 
@@ -68,7 +86,16 @@ var updatePosition = function (x, y) {
         contentType: "application/json; charset=utf-8",
         dataType: 'json',
         async: true,
-        data: JSON.stringify({pan: pan, tilt: tilt})
+        data: JSON.stringify({pan: pan, tilt: tilt}),
+        statusCode: {
+            200: robotMovedCallback,
+            500: noRobotCallback,
+            503: noRobotCallback
+        },
+        error: function(jqXHR, textStatus, errorThrown) {
+            noRobotCallback();
+        },
+        timeout: 500
     });
 };
 
