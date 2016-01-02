@@ -32,7 +32,7 @@ class Servo:
                     self.maxRecordedSpeed = self.currentSpeed
                     # print "%s: speed = %s" % (self.name, self.currentSpeed)
 
-                if self.currentSpeed/(2 * self.distanceToMove()) >= self.acceleration:
+                if self.currentSpeed / (2 * self.distanceToMove()) >= self.acceleration:
                     self.currentSpeed -= self.acceleration
                 else:
                     self.currentSpeed += (self.acceleration * 0.75)
@@ -89,17 +89,10 @@ class PanTiltDevice:
         # self.panServo = Servo("pan", self.pwm, self.PAN_SERVO_CHANNEL, 280, 660, 0.2, 0.003)
         self.panServo = Servo("pan", self.pwm, self.PAN_SERVO_CHANNEL, 120, 700, 0.3, 0.01)
         self.tiltServo = Servo("tilt", self.pwm, self.TILT_SERVO_CHANNEL, 320, 650, 0.3, 0.02)
-        self.panTarget = 50
-        self.tiltTarget = 50
-        self.init()
-
-    def init(self):
-        self.panAndTilt(self.panTarget, self.tiltTarget)
 
     def pan(self, percent):
-        self.panTarget = percent
         # print "panning to %d percent" % self.panTarget
-        self.panServo.setTargetPosition(self.panTarget)
+        self.panServo.setTargetPosition(percent)
 
     def tilt(self, percent):
         # print "tilting to %d percent" % percent
@@ -111,7 +104,6 @@ class PanTiltDevice:
 
 
 class RemotePanTiltController:
-
     def __init__(self, panTilt):
         self.HOST = 'skytrade.io'
         self.PORT = 5000
@@ -119,10 +111,10 @@ class RemotePanTiltController:
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         self.client_socket.settimeout(5.0)
- 
+
         # check and turn on TCP Keepalive
         x = self.client_socket.getsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE)
-        if(x == 0):
+        if x == 0:
             print 'Socket Keepalive off, turning on'
             x = self.client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
             print 'setsockopt=', x
@@ -150,39 +142,44 @@ class RemotePanTiltController:
             tilt = ord(msg[1])
             panTilt.panAndTilt(pan, tilt)
 
+booted = False
+panTilt = PanTiltDevice()
+
 while True:
-	print "Attempting to connect to the mothership..."
-	panTilt = PanTiltDevice()
-	remote = RemotePanTiltController(panTilt)
-	try:
-		remote.connect()
-	except socket.error:
-		print "Socket connection failed! Waiting for a bit then retrying..."
-		#traceback.print_exc()
-		time.sleep(5)
-		continue
-	print "Connected!"
-	panTilt.panAndTilt(45,50)
-	time.sleep(0.2)
-	panTilt.panAndTilt(55,50)
-	time.sleep(0.2)
-	panTilt.panAndTilt(50,50)
+    print "Attempting to connect to the mothership..."
+    remote = RemotePanTiltController(panTilt)
+    try:
+        remote.connect()
+    except socket.error:
+        print "Socket connection failed! Waiting for a bit then retrying..."
+        booted = False
+        # traceback.print_exc()
+        time.sleep(5)
+        continue
+    print "Connected!"
 
-	while True:
-		try:
-			print "streaming commands"
-			remote.streamCommands()
-		except socket.timeout:
-			print "Socket timeout, trying to recv again..."
-			continue
-		except:
-			print "Socket error"
-			break
+    if not booted:
+        booted = True
+        panTilt.panAndTilt(45, 50)
+        time.sleep(0.2)
+        panTilt.panAndTilt(55, 50)
+        time.sleep(0.2)
+        panTilt.panAndTilt(50, 50)
 
-	try:
-		print "Closing..."
-		self.client_socket.close
-	except:
-		pass
+    while True:
+        try:
+            print "streaming commands"
+            remote.streamCommands()
+        except socket.timeout:
+            print "Socket timeout, trying to recv again..."
+            break
+        except:
+            print "Socket error"
+            booted = False
+            break
 
-
+    try:
+        print "Closing..."
+        self.client_socket.close
+    except:
+        pass
