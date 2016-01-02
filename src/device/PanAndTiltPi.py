@@ -4,7 +4,7 @@ import random
 import threading
 import time
 import socket
-import sys
+from math import atan
 
 from Adafruit_PWM_Servo_Driver import PWM
 
@@ -12,58 +12,48 @@ from Adafruit_PWM_Servo_Driver import PWM
 class Servo:
     """A class for controlling a Servo"""
 
-    def distanceToMove(self):
-        return abs(self.targetPos - self.currentPos)
-
-    def directionToMove(self):
-        if self.targetPos > self.currentPos:
-            return 1
-        else:
-            return -1
-
     def _updateServo(self):
+        print "update servo loop started..."
+        self.count = 0
         while True:
-            if self.distanceToMove() > 0:
+            updatePeriod = 0.001
+            k1 = 0.02
+            targetRadians = self.targetPos * 3.14 / 100.0
+            currentRadians = self.currentPos * 3.14 / 100.0
+            deltaRadians = targetRadians - currentRadians
 
-                # When should deceleration begin?
-                # a = (v2-v1)/2s
-                # a = (-v1)/2d
-                if self.currentSpeed > self.maxRecordedSpeed:
-                    self.maxRecordedSpeed = self.currentSpeed
-                    # print "%s: speed = %s" % (self.name, self.currentSpeed)
-
-                if self.currentSpeed / (2 * self.distanceToMove()) >= self.acceleration:
-                    self.currentSpeed -= self.acceleration
-                else:
-                    self.currentSpeed += (self.acceleration * 0.75)
-
-                if self.currentSpeed > self.maxSpeed:
-                    self.currentSpeed = self.maxSpeed
-
-                if self.currentSpeed < 0:
-                    self.currentSpeed = 0
-
-                if self.distanceToMove() > self.currentSpeed:
-                    self.setServoPosition(self.currentPos + self.currentSpeed * self.directionToMove())
-                else:
-                    self.setServoPosition(self.targetPos)
+            maxAdjustment = min(abs(self.currentSpeed) + self.acceleration, self.maxSpeed)
+            rawAdjustment = -atan(-k1 * deltaRadians)
+            if rawAdjustment < 0:
+                adjustment = max(rawAdjustment, -maxAdjustment)
             else:
-                self.currentSpeed = 0
+                adjustment = min(rawAdjustment, maxAdjustment)
 
-            time.sleep(0.001)
+            self.currentSpeed = adjustment
 
-    def __init__(self, name, pwm, channel, minPulseLength, maxPulseLength, maxRate, acceleration):
+            newPositionRadians = currentRadians + adjustment
+            newPos = newPositionRadians * 100.0 / 3.14
+            self.count += 1
+            if self.count % 100 == 0:
+                self.count = 0
+                print "current=%f, target=%f, delta=%f, rawAdjustment=%f, max=%f, adjustment=%f" % (currentRadians, targetRadians, deltaRadians, rawAdjustment, maxAdjustment, adjustment)
+                print "oldPos=%f, newPos=%f" % (self.currentPos, newPos)
+
+            self.setServoPosition(newPos)
+            time.sleep(updatePeriod)
+
+    def __init__(self, name, pwm, channel, minPulseLength, maxPulseLength, maxSpeed, acceleration):
         self.name = name
         self.pwm = pwm
         self.channel = channel
         self.minPulseLength = minPulseLength
         self.maxPulseLength = maxPulseLength
-        self.targetPos = 50
-        self.currentPos = 50
+        self.targetPos = 50.0
+        self.currentPos = 50.0
         self.currentSpeed = 0
         self.maxRecordedSpeed = 0
         self.acceleration = acceleration
-        self.maxSpeed = maxRate
+        self.maxSpeed = maxSpeed
         t = threading.Thread(target=self._updateServo)
         t.daemon = True
         t.start()
@@ -74,6 +64,7 @@ class Servo:
         self.pwm.setPWM(self.channel, 0, pulseWidth)
 
     def setTargetPosition(self, pos):
+        print "new target position: %f" % pos
         self.targetPos = pos
 
 
@@ -87,8 +78,8 @@ class PanTiltDevice:
         self.pwm = PWM(0x40)
         self.pwm.setPWMFreq(10)  # Set frequency to 60 Hz
         # self.panServo = Servo("pan", self.pwm, self.PAN_SERVO_CHANNEL, 280, 660, 0.2, 0.003)
-        self.panServo = Servo("pan", self.pwm, self.PAN_SERVO_CHANNEL, 150, 700, 0.3, 0.02)
-        self.tiltServo = Servo("tilt", self.pwm, self.TILT_SERVO_CHANNEL, 300, 680, 0.4, 0.02)
+        self.panServo = Servo("pan", self.pwm, self.PAN_SERVO_CHANNEL, 150, 700, 0.008, 0.00005)
+        self.tiltServo = Servo("tilt", self.pwm, self.TILT_SERVO_CHANNEL, 300, 680, 0.008, 0.00005)
 
     def pan(self, percent):
         # print "panning to %d percent" % self.panTarget
